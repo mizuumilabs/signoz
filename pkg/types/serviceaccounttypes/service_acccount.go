@@ -253,6 +253,7 @@ func (serviceAccount *ServiceAccountWithRoles) GetRoles() []*authtypes.Role {
 }
 
 type Store interface {
+	OIDCStore
 	// Service Account
 	Create(context.Context, *ServiceAccount) error
 	GetWithRoles(context.Context, valuer.UUID, valuer.UUID) (*ServiceAccountWithRoles, error)

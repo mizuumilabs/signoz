@@ -6,11 +6,15 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/SigNoz/signoz/pkg/authn/oidclogin"
 	"github.com/SigNoz/signoz/pkg/types/authtypes"
 	"github.com/SigNoz/signoz/pkg/valuer"
 )
 
 type Module interface {
+	OIDCConfig() oidclogin.Config
+	CreateOIDCSession(context.Context, valuer.Email) (*authtypes.GettableToken, error)
+
 	// Gets the session context for the user. The context contains information on what the user has to do in order to create a session.
 	GetSessionContext(ctx context.Context, email valuer.Email, siteURL *url.URL) (*authtypes.SessionContext, error)
 
@@ -31,6 +35,11 @@ type Module interface {
 }
 
 type Handler interface {
+	GetOIDCConfig(http.ResponseWriter, *http.Request)
+	StartOIDCLogin(http.ResponseWriter, *http.Request)
+	CompleteOIDCLogin(http.ResponseWriter, *http.Request)
+	CreateOIDCSession(http.ResponseWriter, *http.Request)
+
 	// Get the session context for the user.
 	GetSessionContext(http.ResponseWriter, *http.Request)
 

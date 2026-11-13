@@ -28,6 +28,7 @@ import (
 	"github.com/SigNoz/signoz/pkg/identn"
 	"github.com/SigNoz/signoz/pkg/identn/apikeyidentn"
 	"github.com/SigNoz/signoz/pkg/identn/impersonationidentn"
+	"github.com/SigNoz/signoz/pkg/identn/oidcidentn"
 	"github.com/SigNoz/signoz/pkg/identn/tokenizeridentn"
 	"github.com/SigNoz/signoz/pkg/meterreporter"
 	"github.com/SigNoz/signoz/pkg/meterreporter/noopmeterreporter"
@@ -275,6 +276,7 @@ func NewSQLMigrationProviderFactories(
 		sqlmigration.NewMigrateRulesV1ToV2Alpha1Factory(sqlstore),
 		sqlmigration.NewAddLLMPricingRuleTuplesFactory(sqlstore),
 		sqlmigration.NewRemoveUnsupportedQuickFiltersFactory(),
+		sqlmigration.NewAddServiceAccountOIDCBindingFactory(sqlstore, sqlschema),
 	)
 }
 
@@ -406,6 +408,7 @@ func NewTokenizerProviderFactories(cache cache.Cache, sqlstore sqlstore.SQLStore
 func NewIdentNProviderFactories(tokenizer tokenizer.Tokenizer, serviceAccount serviceaccount.Module, orgGetter organization.Getter, userGetter user.Getter, userConfig user.Config) factory.NamedMap[factory.ProviderFactory[identn.IdentN, identn.Config]] {
 	return factory.MustNewNamedMap(
 		impersonationidentn.NewFactory(orgGetter, userGetter, userConfig),
+		oidcidentn.NewFactory(serviceAccount),
 		tokenizeridentn.NewFactory(tokenizer),
 		apikeyidentn.NewFactory(serviceAccount),
 	)

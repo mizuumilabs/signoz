@@ -8,6 +8,7 @@ var (
 	IdentNProviderAnonymous     = IdentNProvider{valuer.NewString("anonymous")}
 	IdentNProviderInternal      = IdentNProvider{valuer.NewString("internal")}
 	IdentNProviderImpersonation = IdentNProvider{valuer.NewString("impersonation")}
+	IdentNProviderOIDC          = IdentNProvider{valuer.NewString("oidc")}
 )
 
 type IdentNProvider struct{ valuer.String }

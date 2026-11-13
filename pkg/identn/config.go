@@ -6,6 +6,8 @@ import (
 )
 
 type Config struct {
+	OIDC OIDCConfig `mapstructure:"oidc"`
+
 	// Config for tokenizer identN resolver
 	Tokenizer TokenizerConfig `mapstructure:"tokenizer"`
 
@@ -58,7 +60,13 @@ func newConfig() factory.Config {
 }
 
 func (c Config) Validate() error {
+	if err := c.OIDC.Validate(); err != nil {
+		return err
+	}
 	if c.Impersonation.Enabled {
+		if c.OIDC.Enabled {
+			return errors.New(errors.TypeInvalidInput, errors.CodeInvalidInput, "identn::impersonation cannot be enabled if identn::oidc is enabled")
+		}
 		if c.Tokenizer.Enabled {
 			return errors.New(errors.TypeInvalidInput, errors.CodeInvalidInput, "identn::impersonation cannot be enabled if identn::tokenizer is enabled")
 		}

@@ -25,6 +25,12 @@ const WORKSPACE = 'Login · workspace';
 
 export const loginMocks = defineStoryMocks({
 	controls: {
+		oidc: toggleControl('Keycloak login', {
+			group: WORKSPACE,
+			description:
+				'Replace email and password login with instance-wide Keycloak authentication.',
+			value: false,
+		}),
 		orgs: countControl('Organizations', {
 			group: WORKSPACE,
 			description:
@@ -54,6 +60,16 @@ export const loginMocks = defineStoryMocks({
 	},
 	handlers: (values, response) => [
 		rest.get(
+			'http://localhost/api/v2/sessions/oidc',
+			response.json(() => ({
+				status: 'success',
+				data: {
+					enabled: values.oidc,
+					...(values.oidc ? { loginURL: '/api/v2/sessions/oidc/login' } : {}),
+				},
+			})),
+		),
+		rest.get(
 			'http://localhost/api/v2/sessions/context',
 			response.json(() =>
 				sessionsContextResponse(values.orgs, values.authN, values.orgWarning),
@@ -62,7 +78,7 @@ export const loginMocks = defineStoryMocks({
 	],
 	config: (values) => ({
 		route: values.callbackError
-			? `${ROUTES.LOGIN}?${CALLBACK_ERROR_PARAMS}`
+			? `${ROUTES.LOGIN}?${values.oidc ? 'oidcError=authentication_failed' : CALLBACK_ERROR_PARAMS}`
 			: ROUTES.LOGIN,
 		// The login page is what a signed-out browser lands on, so the shell has no
 		// side nav, top nav or banners to draw.

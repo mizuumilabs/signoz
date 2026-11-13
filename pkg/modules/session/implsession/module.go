@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/SigNoz/signoz/pkg/authn"
+	"github.com/SigNoz/signoz/pkg/authn/oidclogin"
 	"github.com/SigNoz/signoz/pkg/authz"
 	"github.com/SigNoz/signoz/pkg/errors"
 	"github.com/SigNoz/signoz/pkg/factory"
@@ -33,10 +34,16 @@ type module struct {
 	orgGetter    organization.Getter
 	authz        authz.AuthZ
 	globalConfig global.Config
+	oidcConfig   oidclogin.Config
 }
 
-func NewModule(providerSettings factory.ProviderSettings, authNs map[authtypes.AuthNProvider]authn.AuthN, userSetter user.Setter, userGetter user.Getter, authDomain authdomain.Module, tokenizer tokenizer.Tokenizer, orgGetter organization.Getter, authz authz.AuthZ, globalConfig global.Config) session.Module {
+func NewModule(providerSettings factory.ProviderSettings, authNs map[authtypes.AuthNProvider]authn.AuthN, userSetter user.Setter, userGetter user.Getter, authDomain authdomain.Module, tokenizer tokenizer.Tokenizer, orgGetter organization.Getter, authz authz.AuthZ, globalConfig global.Config, oidcConfigs ...oidclogin.Config) session.Module {
+	var oidcConfig oidclogin.Config
+	if len(oidcConfigs) > 0 {
+		oidcConfig = oidcConfigs[0]
+	}
 	return &module{
+		oidcConfig:   oidcConfig,
 		settings:     factory.NewScopedProviderSettings(providerSettings, "github.com/SigNoz/signoz/pkg/modules/session/implsession"),
 		authNs:       authNs,
 		userSetter:   userSetter,
@@ -50,6 +57,9 @@ func NewModule(providerSettings factory.ProviderSettings, authNs map[authtypes.A
 }
 
 func (module *module) GetSessionContext(ctx context.Context, email valuer.Email, siteURL *url.URL) (*authtypes.SessionContext, error) {
+	if module.oidcConfig.Enabled {
+		return nil, errors.New(errors.TypeForbidden, errors.CodeForbidden, "sign in using OIDC")
+	}
 	context := authtypes.NewSessionContext()
 
 	orgs, err := module.orgGetter.ListByOwnedKeyRange(ctx)
@@ -118,6 +128,9 @@ func (module *module) GetSessionContext(ctx context.Context, email valuer.Email,
 }
 
 func (module *module) CreatePasswordAuthNSession(ctx context.Context, authNProvider authtypes.AuthNProvider, email valuer.Email, password string, orgID valuer.UUID) (*authtypes.Token, error) {
+	if module.oidcConfig.Enabled {
+		return nil, errors.New(errors.TypeForbidden, errors.CodeForbidden, "password login is disabled; sign in using OIDC")
+	}
 	passwordAuthN, err := getProvider[authn.PasswordAuthN](authNProvider, module.authNs)
 	if err != nil {
 		return nil, err
@@ -132,6 +145,9 @@ func (module *module) CreatePasswordAuthNSession(ctx context.Context, authNProvi
 }
 
 func (module *module) CreateCallbackAuthNSession(ctx context.Context, authNProvider authtypes.AuthNProvider, values url.Values) (string, error) {
+	if module.oidcConfig.Enabled {
+		return "", errors.New(errors.TypeForbidden, errors.CodeForbidden, "sign in using the configured OIDC provider")
+	}
 	callbackAuthN, err := getProvider[authn.CallbackAuthN](authNProvider, module.authNs)
 	if err != nil {
 		return "", err

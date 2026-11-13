@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/SigNoz/signoz/pkg/identn"
+
 	"github.com/SigNoz/signoz/pkg/statsreporter"
 	"github.com/SigNoz/signoz/pkg/types/authtypes"
 	"github.com/SigNoz/signoz/pkg/types/serviceaccounttypes"
@@ -20,6 +22,11 @@ type Getter interface {
 }
 
 type Module interface {
+	OIDCConfig() identn.OIDCConfig
+	GetOIDCBinding(context.Context, valuer.UUID, valuer.UUID) (*serviceaccounttypes.GettableOIDCBinding, error)
+	SetOIDCBinding(context.Context, valuer.UUID, valuer.UUID, *serviceaccounttypes.PostableOIDCBinding) error
+	DeleteOIDCBinding(context.Context, valuer.UUID, valuer.UUID) error
+	GetOIDCIdentity(context.Context, string, string, string) (*authtypes.Identity, error)
 	// Creates a new service account for an organization.
 	Create(context.Context, valuer.UUID, *serviceaccounttypes.ServiceAccount) error
 
@@ -80,6 +87,9 @@ type Module interface {
 }
 
 type Handler interface {
+	GetOIDCBinding(http.ResponseWriter, *http.Request)
+	SetOIDCBinding(http.ResponseWriter, *http.Request)
+	DeleteOIDCBinding(http.ResponseWriter, *http.Request)
 	Create(http.ResponseWriter, *http.Request)
 
 	Get(http.ResponseWriter, *http.Request)

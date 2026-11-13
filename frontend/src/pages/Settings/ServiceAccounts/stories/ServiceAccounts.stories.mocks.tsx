@@ -7,9 +7,19 @@ import ROUTES from 'constants/routes';
 import { handleInternalServerError } from 'mocks-server/utils';
 import { rest } from 'msw';
 
-import { choiceControl, countControl } from '@/storybook/controls/controls';
+import {
+	choiceControl,
+	countControl,
+	toggleControl,
+} from '@/storybook/controls/controls';
 import { defineStoryMocks } from '@/storybook/controls/defineStoryMocks';
 import type { MockResolver } from '@/storybook/msw/types';
+import type { ServiceAccountOIDCBinding } from 'components/ServiceAccountDrawer/useServiceAccountOIDC';
+
+import {
+	KEYCLOAK_BINDING,
+	serviceAccountOIDCResponse,
+} from './__story_mockdata__/serviceAccountOIDC';
 
 import {
 	ACTIVE_ACCOUNT_MAX,
@@ -54,6 +64,23 @@ export const keysLoadingForever = rest.get(
 
 export const serviceAccountsMocks = defineStoryMocks({
 	controls: {
+		oidcEnabled: toggleControl('Keycloak tokens enabled', {
+			group: DRAWER,
+			value: true,
+		}),
+		oidcBound: toggleControl('Existing Keycloak binding', {
+			group: DRAWER,
+			value: true,
+		}),
+		oidcStale: toggleControl('Binding from previous issuer', {
+			group: DRAWER,
+			value: false,
+		}),
+		oidcUpdate: choiceControl<MutationOutcome>('Saving Keycloak authentication', {
+			group: DRAWER,
+			options: MUTATION_OUTCOMES,
+			value: 'success',
+		}),
 		accounts: countControl('Active accounts', {
 			group: LIST,
 			description: 'The table paginates past 20.',
@@ -115,80 +142,128 @@ export const serviceAccountsMocks = defineStoryMocks({
 			value: 'success',
 		}),
 	},
-	handlers: (values, response) => [
-		rest.get(
-			'http://localhost/api/v1/service_accounts',
-			response.json(() =>
-				serviceAccountsResponse(values.accounts, values.deleted),
+	handlers: (values, response) => {
+		const bindings = new Map<string, ServiceAccountOIDCBinding | null>();
+		return [
+			rest.get(
+				'http://localhost/api/v1/service_accounts/:id/oidc',
+				response.json((req) => {
+					const id = String(req.params.id);
+					return serviceAccountOIDCResponse(
+						values.oidcEnabled,
+						bindings.has(id)
+							? (bindings.get(id) ?? null)
+							: values.oidcBound
+								? {
+										...KEYCLOAK_BINDING,
+										...(values.oidcStale
+											? { issuer: 'https://old-keycloak.example.com/realms/old' }
+											: {}),
+									}
+								: null,
+					);
+				}),
 			),
-		),
-
-		rest.post(
-			'http://localhost/api/v1/service_accounts',
-			mutationResolver(values.accountCreate, createdServiceAccountResponse()),
-		),
-
-		rest.get(
-			'http://localhost/api/v1/service_accounts/:id/keys',
-			response.json((req) =>
-				serviceAccountKeysResponse(String(req.params.id), values.keys),
+			rest.put(
+				'http://localhost/api/v1/service_accounts/:id/oidc',
+				async (req, res, ctx) => {
+					if (values.oidcUpdate === 'loading') {
+						return res(ctx.delay('infinite'));
+					}
+					if (values.oidcUpdate === 'error') {
+						return res(ctx.status(500));
+					}
+					bindings.set(String(req.params.id), {
+						...(await req.json<{ clientId: string; subject: string }>()),
+						issuer: KEYCLOAK_BINDING.issuer,
+					});
+					return res(ctx.status(204));
+				},
 			),
-		),
+			rest.delete(
+				'http://localhost/api/v1/service_accounts/:id/oidc',
+				(req, res, ctx) => {
+					if (values.oidcUpdate !== 'success') {
+						return mutationResolver(values.oidcUpdate)(req, res, ctx);
+					}
+					bindings.set(String(req.params.id), null);
+					return res(ctx.status(204));
+				},
+			),
+			rest.get(
+				'http://localhost/api/v1/service_accounts',
+				response.json(() =>
+					serviceAccountsResponse(values.accounts, values.deleted),
+				),
+			),
 
-		rest.post(
-			'http://localhost/api/v1/service_accounts/:id/keys',
-			response.json(() => createdServiceAccountKeyResponse()),
-		),
+			rest.post(
+				'http://localhost/api/v1/service_accounts',
+				mutationResolver(values.accountCreate, createdServiceAccountResponse()),
+			),
 
-		rest.put(
-			'http://localhost/api/v1/service_accounts/:id/keys/:fid',
-			mutationResolver(values.keyUpdate),
-		),
+			rest.get(
+				'http://localhost/api/v1/service_accounts/:id/keys',
+				response.json((req) =>
+					serviceAccountKeysResponse(String(req.params.id), values.keys),
+				),
+			),
 
-		rest.delete(
-			'http://localhost/api/v1/service_accounts/:id/keys/:fid',
-			mutationResolver(values.keyRevoke),
-		),
+			rest.post(
+				'http://localhost/api/v1/service_accounts/:id/keys',
+				response.json(() => createdServiceAccountKeyResponse()),
+			),
 
-		rest.get(
-			'http://localhost/api/v1/service_accounts/:id',
-			response.json((req) => {
-				const id = String(req.params.id);
-				const index = Number.parseInt(id.split('-').pop() ?? '0', 10);
+			rest.put(
+				'http://localhost/api/v1/service_accounts/:id/keys/:fid',
+				mutationResolver(values.keyUpdate),
+			),
 
-				return serviceAccountDetailResponse(id, index >= values.accounts);
-			}),
-		),
+			rest.delete(
+				'http://localhost/api/v1/service_accounts/:id/keys/:fid',
+				mutationResolver(values.keyRevoke),
+			),
 
-		rest.put(
-			'http://localhost/api/v1/service_accounts/:id',
-			values.saveOutcome === 'fails'
-				? rejectSave
-				: response.json(() => ({ status: 'success', data: null })),
-		),
+			rest.get(
+				'http://localhost/api/v1/service_accounts/:id',
+				response.json((req) => {
+					const id = String(req.params.id);
+					const index = Number.parseInt(id.split('-').pop() ?? '0', 10);
 
-		rest.delete(
-			'http://localhost/api/v1/service_accounts/:id',
-			mutationResolver(values.accountDelete),
-		),
+					return serviceAccountDetailResponse(id, index >= values.accounts);
+				}),
+			),
 
-		rest.post(
-			'http://localhost/api/v1/service_account_roles',
-			response.json(() => ({
-				status: 'success',
-				data: { id: 'service-account-role-new' },
-			})),
-		),
+			rest.put(
+				'http://localhost/api/v1/service_accounts/:id',
+				values.saveOutcome === 'fails'
+					? rejectSave
+					: response.json(() => ({ status: 'success', data: null })),
+			),
 
-		rest.delete(
-			'http://localhost/api/v1/service_account_roles/:id',
-			response.json(() => ({ status: 'success', data: null })),
-		),
+			rest.delete(
+				'http://localhost/api/v1/service_accounts/:id',
+				mutationResolver(values.accountDelete),
+			),
 
-		rest.get(
-			'http://localhost/api/v1/roles',
-			response.json(() => rolesListResponse(values.roles)),
-		),
-	],
+			rest.post(
+				'http://localhost/api/v1/service_account_roles',
+				response.json(() => ({
+					status: 'success',
+					data: { id: 'service-account-role-new' },
+				})),
+			),
+
+			rest.delete(
+				'http://localhost/api/v1/service_account_roles/:id',
+				response.json(() => ({ status: 'success', data: null })),
+			),
+
+			rest.get(
+				'http://localhost/api/v1/roles',
+				response.json(() => rolesListResponse(values.roles)),
+			),
+		];
+	},
 	config: () => ({ route: ROUTES.SERVICE_ACCOUNTS_SETTINGS }),
 });

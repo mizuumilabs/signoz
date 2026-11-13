@@ -31,6 +31,18 @@ func NewIdentNResolver(ctx context.Context, providerSettings factory.ProviderSet
 		identNs = append(identNs, identN)
 	}
 
+	if identNConfig.OIDC.Enabled {
+		identNFactory, err := identNFactories.Get(authtypes.IdentNProviderOIDC.StringValue())
+		if err != nil {
+			return nil, err
+		}
+		identN, err := identNFactory.New(ctx, providerSettings, identNConfig)
+		if err != nil {
+			return nil, err
+		}
+		identNs = append(identNs, identN)
+	}
+
 	if identNConfig.Tokenizer.Enabled {
 		identNFactory, err := identNFactories.Get(authtypes.IdentNProviderTokenizer.StringValue())
 		if err != nil {

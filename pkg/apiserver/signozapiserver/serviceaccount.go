@@ -14,6 +14,9 @@ import (
 )
 
 func (provider *provider) addServiceAccountRoutes(router *mux.Router) error {
+	if err := provider.addServiceAccountOIDCRoutes(router); err != nil {
+		return err
+	}
 	if err := router.Handle("/api/v1/service_accounts", handler.New(
 		provider.authzMiddleware.CheckResources(provider.serviceAccountHandler.Create, authtypes.SigNozAdminRoleName),
 		handler.OpenAPIDef{

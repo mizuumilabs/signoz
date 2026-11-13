@@ -9,6 +9,7 @@ import (
 	"github.com/SigNoz/signoz/pkg/cache"
 	"github.com/SigNoz/signoz/pkg/errors"
 	"github.com/SigNoz/signoz/pkg/factory"
+	"github.com/SigNoz/signoz/pkg/identn"
 	"github.com/SigNoz/signoz/pkg/modules/serviceaccount"
 	"github.com/SigNoz/signoz/pkg/types/authtypes"
 	"github.com/SigNoz/signoz/pkg/types/cachetypes"
@@ -22,17 +23,22 @@ var (
 )
 
 type module struct {
-	store     serviceaccounttypes.Store
-	authz     authz.AuthZ
-	cache     cache.Cache
-	analytics analytics.Analytics
-	settings  factory.ScopedProviderSettings
-	config    serviceaccount.Config
+	store      serviceaccounttypes.Store
+	authz      authz.AuthZ
+	cache      cache.Cache
+	analytics  analytics.Analytics
+	settings   factory.ScopedProviderSettings
+	config     serviceaccount.Config
+	oidcConfig identn.OIDCConfig
 }
 
-func NewModule(store serviceaccounttypes.Store, authz authz.AuthZ, cache cache.Cache, analytics analytics.Analytics, providerSettings factory.ProviderSettings, config serviceaccount.Config) serviceaccount.Module {
+func NewModule(store serviceaccounttypes.Store, authz authz.AuthZ, cache cache.Cache, analytics analytics.Analytics, providerSettings factory.ProviderSettings, config serviceaccount.Config, oidcConfigs ...identn.OIDCConfig) serviceaccount.Module {
 	settings := factory.NewScopedProviderSettings(providerSettings, "github.com/SigNoz/signoz/pkg/modules/serviceaccount/implserviceaccount")
-	return &module{store: store, authz: authz, cache: cache, analytics: analytics, settings: settings, config: config}
+	var oidcConfig identn.OIDCConfig
+	if len(oidcConfigs) > 0 {
+		oidcConfig = oidcConfigs[0]
+	}
+	return &module{store: store, authz: authz, cache: cache, analytics: analytics, settings: settings, config: config, oidcConfig: oidcConfig}
 }
 
 func (module *module) Create(ctx context.Context, orgID valuer.UUID, serviceAccount *serviceaccounttypes.ServiceAccount) error {
@@ -170,6 +176,9 @@ func (module *module) Delete(ctx context.Context, orgID valuer.UUID, id valuer.U
 	}
 
 	err = module.store.RunInTx(ctx, func(ctx context.Context) error {
+		if err := module.store.DeleteOIDCBinding(ctx, orgID, id); err != nil {
+			return err
+		}
 		// revoke all the API keys on disable
 		err := module.store.RevokeAllFactorAPIKeys(ctx, id)
 		if err != nil {

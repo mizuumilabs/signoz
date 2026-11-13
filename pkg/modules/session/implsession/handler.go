@@ -7,6 +7,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/SigNoz/signoz/pkg/authn/oidclogin"
 	"github.com/SigNoz/signoz/pkg/errors"
 	"github.com/SigNoz/signoz/pkg/global"
 	"github.com/SigNoz/signoz/pkg/http/binding"
@@ -17,12 +18,17 @@ import (
 )
 
 type handler struct {
+	oidc         *oidclogin.Handler
 	module       session.Module
 	globalConfig global.Config
 }
 
 func NewHandler(module session.Module, globalConfig global.Config) session.Handler {
-	return &handler{module: module, globalConfig: globalConfig}
+	h := &handler{module: module, globalConfig: globalConfig}
+	if module != nil {
+		h.oidc = oidclogin.New(module.OIDCConfig(), globalConfig, module.CreateOIDCSession)
+	}
+	return h
 }
 
 func (handler *handler) GetSessionContext(rw http.ResponseWriter, req *http.Request) {

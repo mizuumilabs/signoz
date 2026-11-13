@@ -9,6 +9,9 @@ import (
 )
 
 func (provider *provider) addSessionRoutes(router *mux.Router) error {
+	if err := provider.addOIDCRoutes(router); err != nil {
+		return err
+	}
 	if err := router.Handle("/api/v2/sessions/email_password", handler.New(provider.authzMiddleware.OpenAccess(provider.sessionHandler.CreateSessionByEmailPassword), handler.OpenAPIDef{
 		ID:                  "CreateSessionByEmailPassword",
 		Tags:                []string{"sessions"},

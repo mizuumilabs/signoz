@@ -12,6 +12,7 @@ import (
 	"github.com/SigNoz/signoz/pkg/analytics"
 	"github.com/SigNoz/signoz/pkg/apiserver"
 	"github.com/SigNoz/signoz/pkg/auditor"
+	"github.com/SigNoz/signoz/pkg/authn/oidclogin"
 	"github.com/SigNoz/signoz/pkg/authz"
 	"github.com/SigNoz/signoz/pkg/cache"
 	"github.com/SigNoz/signoz/pkg/config"
@@ -49,6 +50,8 @@ import (
 
 // Config defines the entire input configuration of signoz.
 type Config struct {
+	OIDC oidclogin.Config `mapstructure:"oidc"`
+
 	// Global config
 	Global global.Config `mapstructure:"global"`
 
@@ -151,6 +154,7 @@ type Config struct {
 
 func NewConfig(ctx context.Context, logger *slog.Logger, resolverConfig config.ResolverConfig) (Config, error) {
 	configFactories := []factory.ConfigFactory{
+		oidclogin.NewConfigFactory(),
 		global.NewConfigFactory(),
 		version.NewConfigFactory(),
 		instrumentation.NewConfigFactory(),
@@ -205,6 +209,11 @@ func NewConfig(ctx context.Context, logger *slog.Logger, resolverConfig config.R
 }
 
 func validateConfig(config Config) error {
+	if config.OIDC.Enabled {
+		if err := oidclogin.ValidateExternalURL(config.Global.ExternalURL); err != nil {
+			return err
+		}
+	}
 	rvConfig := reflect.ValueOf(config)
 	for i := 0; i < rvConfig.NumField(); i++ {
 		factoryConfig, ok := rvConfig.Field(i).Interface().(factory.Config)

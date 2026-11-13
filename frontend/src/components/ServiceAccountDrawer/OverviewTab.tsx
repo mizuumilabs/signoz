@@ -18,6 +18,7 @@ import { useTimezone } from 'providers/Timezone';
 import APIError from 'types/api/error';
 
 import SaveErrorItem from './SaveErrorItem';
+import ServiceAccountOIDC from './ServiceAccountOIDC';
 import type { SaveError } from './utils';
 import { Skeleton } from 'antd';
 
@@ -222,6 +223,12 @@ function OverviewTab({
 					</Badge>
 				</div>
 			</div>
+
+			<ServiceAccountOIDC
+				key={account.id}
+				accountId={account.id}
+				deleted={account.status?.toUpperCase() === 'DELETED'}
+			/>
 
 			{saveErrors.length > 0 && (
 				<div className="sa-drawer__save-errors">
