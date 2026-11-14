@@ -277,6 +277,7 @@ func NewSQLMigrationProviderFactories(
 		sqlmigration.NewAddLLMPricingRuleTuplesFactory(sqlstore),
 		sqlmigration.NewRemoveUnsupportedQuickFiltersFactory(),
 		sqlmigration.NewAddServiceAccountOIDCBindingFactory(sqlstore, sqlschema),
+		sqlmigration.NewAddOIDCSessionRevocationFactory(sqlschema),
 	)
 }
 

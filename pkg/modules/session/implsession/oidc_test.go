@@ -82,7 +82,7 @@ func TestOIDCRequiresActiveMembership(t *testing.T) {
 			}
 			tokens := &oidcTokenizer{}
 			m := &module{oidcConfig: oidclogin.Config{Enabled: !tc.disabled, OrgID: orgID}, userGetter: getter, tokenizer: tokens}
-			result, err := m.CreateOIDCSession(context.Background(), email)
+			result, err := m.CreateOIDCSession(context.Background(), oidclogin.Identity{Email: email})
 			if !tc.allowed {
 				require.Error(t, err)
 				require.Nil(t, result)

@@ -71,6 +71,10 @@ func (provider *provider) Start(ctx context.Context) error {
 	return nil
 }
 
+func (provider *provider) RevokeOIDCSessions(context.Context, authtypes.OIDCSession) error {
+	return errors.NewInvalidInputf(errors.CodeInvalidInput, "OIDC back-channel logout requires the opaque tokenizer")
+}
+
 func (provider *provider) CreateToken(ctx context.Context, identity *authtypes.Identity, meta map[string]string) (*authtypes.Token, error) {
 	accessTokenClaims := Claims{
 		UserID: identity.UserID.String(),

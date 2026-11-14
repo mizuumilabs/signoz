@@ -222,6 +222,9 @@ func (typ *Token) UnmarshalBinary(data []byte) error {
 }
 
 type TokenStore interface {
+	RevokeOIDCSessions(context.Context, OIDCSession) error
+	CheckOIDCSession(context.Context, map[string]string) error
+
 	// Create a new token.
 	Create(context.Context, *StorableToken) error
 

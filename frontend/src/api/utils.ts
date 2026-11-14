@@ -5,9 +5,13 @@ import { navigate } from 'lib/router/navigation';
 
 import deleteSession from './v2/sessions/delete';
 
-export const Logout = async (): Promise<void> => {
+export const Logout = async (logoutProvider = false): Promise<void> => {
+	let logoutURL: string | undefined;
 	try {
-		await deleteSession();
+		const response = await deleteSession(logoutProvider);
+		if (logoutProvider) {
+			logoutURL = response.data?.logoutURL;
+		}
 	} catch (error) {
 		console.error(error);
 	}
@@ -21,5 +25,9 @@ export const Logout = async (): Promise<void> => {
 	deleteLocalStorageKey(LOCALSTORAGE.CHAT_SUPPORT);
 	deleteLocalStorageKey(LOCALSTORAGE.USER_ID);
 	window.dispatchEvent(new CustomEvent('LOGOUT'));
+	if (logoutURL) {
+		window.location.assign(logoutURL);
+		return;
+	}
 	navigate(ROUTES.LOGIN);
 };

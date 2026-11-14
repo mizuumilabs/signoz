@@ -10,13 +10,19 @@ import { ErrorV2Resp, RawSuccessResponse, SuccessResponseV2 } from 'types/api';
  *
  * Part of https://github.com/SigNoz/engineering-pod/issues/5289, add a comment or update when removing this method.
  */
-const deleteSession = async (): Promise<SuccessResponseV2<null>> => {
+const deleteSession = async (
+	logoutProvider = false,
+): Promise<SuccessResponseV2<{ logoutURL: string } | null>> => {
 	try {
-		const response = await axios.delete<RawSuccessResponse<null>>('/sessions');
+		const response = await axios.delete<
+			RawSuccessResponse<{ logoutURL: string } | null>
+		>('/sessions', {
+			params: logoutProvider ? { logout_provider: true } : undefined,
+		});
 
 		return {
 			httpStatusCode: response.status,
-			data: response.data.data,
+			data: response.data?.data ?? null,
 		};
 	} catch (error) {
 		ErrorResponseHandlerV2(error as AxiosError<ErrorV2Resp>);

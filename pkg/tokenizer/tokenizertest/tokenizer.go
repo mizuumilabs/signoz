@@ -534,6 +534,63 @@ func (_c *MockTokenizer_ListMaxLastObservedAtByOrgID_Call) RunAndReturn(run func
 	return _c
 }
 
+// RevokeOIDCSessions provides a mock function for the type MockTokenizer
+func (_mock *MockTokenizer) RevokeOIDCSessions(context1 context.Context, oIDCSession authtypes.OIDCSession) error {
+	ret := _mock.Called(context1, oIDCSession)
+
+	if len(ret) == 0 {
+		panic("no return value specified for RevokeOIDCSessions")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, authtypes.OIDCSession) error); ok {
+		r0 = returnFunc(context1, oIDCSession)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockTokenizer_RevokeOIDCSessions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'RevokeOIDCSessions'
+type MockTokenizer_RevokeOIDCSessions_Call struct {
+	*mock.Call
+}
+
+// RevokeOIDCSessions is a helper method to define mock.On call
+//   - context1 context.Context
+//   - oIDCSession authtypes.OIDCSession
+func (_e *MockTokenizer_Expecter) RevokeOIDCSessions(context1 interface{}, oIDCSession interface{}) *MockTokenizer_RevokeOIDCSessions_Call {
+	return &MockTokenizer_RevokeOIDCSessions_Call{Call: _e.mock.On("RevokeOIDCSessions", context1, oIDCSession)}
+}
+
+func (_c *MockTokenizer_RevokeOIDCSessions_Call) Run(run func(context1 context.Context, oIDCSession authtypes.OIDCSession)) *MockTokenizer_RevokeOIDCSessions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 authtypes.OIDCSession
+		if args[1] != nil {
+			arg1 = args[1].(authtypes.OIDCSession)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockTokenizer_RevokeOIDCSessions_Call) Return(err error) *MockTokenizer_RevokeOIDCSessions_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockTokenizer_RevokeOIDCSessions_Call) RunAndReturn(run func(context1 context.Context, oIDCSession authtypes.OIDCSession) error) *MockTokenizer_RevokeOIDCSessions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // RotateToken provides a mock function for the type MockTokenizer
 func (_mock *MockTokenizer) RotateToken(context1 context.Context, s string, s1 string) (*authtypes.Token, error) {
 	ret := _mock.Called(context1, s, s1)

@@ -210,6 +210,9 @@ func NewConfig(ctx context.Context, logger *slog.Logger, resolverConfig config.R
 
 func validateConfig(config Config) error {
 	if config.OIDC.Enabled {
+		if config.Tokenizer.Provider != "opaque" {
+			return errors.NewInvalidInputf(errors.CodeInvalidInput, "community OIDC login requires tokenizer.provider=opaque for session revocation")
+		}
 		if err := oidclogin.ValidateExternalURL(config.Global.ExternalURL); err != nil {
 			return err
 		}

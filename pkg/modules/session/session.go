@@ -13,7 +13,8 @@ import (
 
 type Module interface {
 	OIDCConfig() oidclogin.Config
-	CreateOIDCSession(context.Context, valuer.Email) (*authtypes.GettableToken, error)
+	CreateOIDCSession(context.Context, oidclogin.Identity) (*authtypes.GettableToken, error)
+	RevokeOIDCSessions(context.Context, authtypes.OIDCSession) error
 
 	// Gets the session context for the user. The context contains information on what the user has to do in order to create a session.
 	GetSessionContext(ctx context.Context, email valuer.Email, siteURL *url.URL) (*authtypes.SessionContext, error)
@@ -39,6 +40,7 @@ type Handler interface {
 	StartOIDCLogin(http.ResponseWriter, *http.Request)
 	CompleteOIDCLogin(http.ResponseWriter, *http.Request)
 	CreateOIDCSession(http.ResponseWriter, *http.Request)
+	BackchannelOIDCLogout(http.ResponseWriter, *http.Request)
 
 	// Get the session context for the user.
 	GetSessionContext(http.ResponseWriter, *http.Request)

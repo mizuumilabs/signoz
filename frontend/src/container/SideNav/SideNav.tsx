@@ -915,7 +915,7 @@ function SideNav({ isPinned }: { isPinned: boolean }): JSX.Element {
 				}
 				break;
 			case 'logout':
-				void Logout();
+				void Logout(true);
 				break;
 			default:
 		}

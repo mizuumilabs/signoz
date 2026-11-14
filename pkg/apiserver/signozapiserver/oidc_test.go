@@ -14,7 +14,6 @@ import (
 	"github.com/SigNoz/signoz/pkg/modules/session"
 	"github.com/SigNoz/signoz/pkg/modules/session/implsession"
 	"github.com/SigNoz/signoz/pkg/types/authtypes"
-	"github.com/SigNoz/signoz/pkg/valuer"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +21,7 @@ import (
 type oidcRouteModule struct{ session.Module }
 
 func (*oidcRouteModule) OIDCConfig() oidclogin.Config { return oidclogin.Config{} }
-func (*oidcRouteModule) CreateOIDCSession(context.Context, valuer.Email) (*authtypes.GettableToken, error) {
+func (*oidcRouteModule) CreateOIDCSession(context.Context, oidclogin.Identity) (*authtypes.GettableToken, error) {
 	panic("disabled OIDC must not create a session")
 }
 
@@ -43,6 +42,8 @@ func TestOIDCRouteRegistration(t *testing.T) {
 		{oidclogin.Route + "/callback", http.MethodGet, http.StatusNotFound},
 		{oidclogin.Route + "/session", http.MethodPost, http.StatusNotFound},
 		{oidclogin.Route + "/session", http.MethodGet, http.StatusMethodNotAllowed},
+		{oidclogin.Route + "/backchannel-logout", http.MethodPost, http.StatusNotFound},
+		{oidclogin.Route + "/backchannel-logout", http.MethodGet, http.StatusMethodNotAllowed},
 	} {
 		t.Run(tc.method+tc.path, func(t *testing.T) {
 			w := httptest.NewRecorder()

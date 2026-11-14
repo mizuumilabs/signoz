@@ -26,7 +26,7 @@ type handler struct {
 func NewHandler(module session.Module, globalConfig global.Config) session.Handler {
 	h := &handler{module: module, globalConfig: globalConfig}
 	if module != nil {
-		h.oidc = oidclogin.New(module.OIDCConfig(), globalConfig, module.CreateOIDCSession)
+		h.oidc = oidclogin.New(module.OIDCConfig(), globalConfig, module.CreateOIDCSession, module.RevokeOIDCSessions)
 	}
 	return h
 }
@@ -162,6 +162,18 @@ func (handler *handler) DeleteSession(rw http.ResponseWriter, req *http.Request)
 	if err != nil {
 		render.Error(rw, err)
 		return
+	}
+	if req.URL.Query().Get("logout_provider") == "true" {
+		rw.Header().Set("Cache-Control", "no-store")
+		logoutURL, err := handler.oidc.LogoutURL(ctx, rw, req)
+		if err != nil {
+			render.Error(rw, err)
+			return
+		}
+		if logoutURL != "" {
+			render.Success(rw, http.StatusOK, oidclogin.LogoutResponse{LogoutURL: logoutURL})
+			return
+		}
 	}
 
 	render.Success(rw, http.StatusNoContent, nil)

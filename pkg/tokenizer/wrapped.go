@@ -27,6 +27,10 @@ func (wrapped *wrappedTokenizer) Start(ctx context.Context) error {
 	return wrapped.tokenizer.Start(ctx)
 }
 
+func (wrapped *wrappedTokenizer) RevokeOIDCSessions(ctx context.Context, session authtypes.OIDCSession) error {
+	return wrapped.tokenizer.RevokeOIDCSessions(ctx, session)
+}
+
 func (wrapped *wrappedTokenizer) Stop(ctx context.Context) error {
 	return wrapped.tokenizer.Stop(ctx)
 }

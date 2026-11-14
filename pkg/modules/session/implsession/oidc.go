@@ -8,15 +8,15 @@ import (
 	"github.com/SigNoz/signoz/pkg/errors"
 	"github.com/SigNoz/signoz/pkg/types"
 	"github.com/SigNoz/signoz/pkg/types/authtypes"
-	"github.com/SigNoz/signoz/pkg/valuer"
 )
 
 func (module *module) OIDCConfig() oidclogin.Config { return module.oidcConfig }
 
-func (module *module) CreateOIDCSession(ctx context.Context, email valuer.Email) (*authtypes.GettableToken, error) {
+func (module *module) CreateOIDCSession(ctx context.Context, oidcIdentity oidclogin.Identity) (*authtypes.GettableToken, error) {
 	if !module.oidcConfig.Enabled {
 		return nil, errors.New(errors.TypeForbidden, errors.CodeForbidden, "OIDC login is disabled")
 	}
+	email := oidcIdentity.Email
 	user, err := module.userGetter.GetNonDeletedUserByEmailAndOrgID(ctx, email, module.oidcConfig.OrgID)
 	if err != nil {
 		return nil, err
@@ -25,11 +25,19 @@ func (module *module) CreateOIDCSession(ctx context.Context, email valuer.Email)
 		return nil, errors.New(errors.TypeForbidden, errors.CodeForbidden, "an active organization membership is required")
 	}
 	identity := authtypes.NewPrincipalUserIdentity(user.ID, user.OrgID, user.Email, authtypes.IdentNProviderTokenizer)
-	token, err := module.tokenizer.CreateToken(ctx, identity, map[string]string{"authn": "oidc"})
+	token, err := module.tokenizer.CreateToken(ctx, identity, oidcIdentity.Session.Meta())
 	if err != nil {
 		return nil, err
 	}
 	return authtypes.NewGettableTokenFromToken(token, module.GetRotationInterval(ctx)), nil
+}
+
+func (module *module) RevokeOIDCSessions(ctx context.Context, session authtypes.OIDCSession) error {
+	return module.tokenizer.RevokeOIDCSessions(ctx, session)
+}
+
+func (handler *handler) BackchannelOIDCLogout(w http.ResponseWriter, r *http.Request) {
+	handler.oidc.BackchannelLogout(w, r)
 }
 
 func (handler *handler) GetOIDCConfig(w http.ResponseWriter, r *http.Request) {

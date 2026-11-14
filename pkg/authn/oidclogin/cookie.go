@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path"
 	"time"
 )
 
@@ -17,6 +18,10 @@ type loginCookie struct {
 	Nonce    string `json:"nonce,omitempty"`
 	Verifier string `json:"verifier,omitempty"`
 	Email    string `json:"email,omitempty"`
+	Subject  string `json:"sub,omitempty"`
+	SID      string `json:"sid,omitempty"`
+	IssuedAt int64  `json:"iat,omitempty"`
+	IDToken  string `json:"id_token,omitempty"`
 }
 
 func (h *Handler) cookieCipher() (cipher.AEAD, error) {
@@ -50,7 +55,7 @@ func (h *Handler) setCookie(w http.ResponseWriter, name string, value loginCooki
 	if len(encoded) > 3500 {
 		return fmt.Errorf("OIDC cookie exceeds size limit")
 	}
-	http.SetCookie(w, &http.Cookie{Name: name, Value: encoded, Path: h.cookiePath(), MaxAge: int(lifetime.Seconds()), HttpOnly: true, Secure: h.external.Scheme == "https", SameSite: sameSite})
+	http.SetCookie(w, &http.Cookie{Name: name, Value: encoded, Path: h.cookiePathFor(name), MaxAge: int(lifetime.Seconds()), HttpOnly: true, Secure: h.external.Scheme == "https", SameSite: sameSite})
 	return nil
 }
 
@@ -85,7 +90,14 @@ func (h *Handler) readCookie(r *http.Request, name string) (loginCookie, error) 
 }
 
 func (h *Handler) clearCookie(w http.ResponseWriter, name string) {
-	http.SetCookie(w, &http.Cookie{Name: name, Path: h.cookiePath(), MaxAge: -1, HttpOnly: true, Secure: h.external.Scheme == "https", SameSite: http.SameSiteLaxMode})
+	http.SetCookie(w, &http.Cookie{Name: name, Path: h.cookiePathFor(name), MaxAge: -1, HttpOnly: true, Secure: h.external.Scheme == "https", SameSite: http.SameSiteLaxMode})
+}
+
+func (h *Handler) cookiePathFor(name string) string {
+	if name == logoutCookie {
+		return path.Join(h.external.Path, "/api/v2/sessions")
+	}
+	return h.cookiePath()
 }
 
 func (h *Handler) cookieAudience(name string) []byte {

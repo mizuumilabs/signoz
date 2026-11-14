@@ -12,6 +12,7 @@ import (
 
 type Tokenizer interface {
 	factory.Service
+	RevokeOIDCSessions(context.Context, authtypes.OIDCSession) error
 	// Create a new token.
 	CreateToken(context.Context, *authtypes.Identity, map[string]string) (*authtypes.Token, error)
 

@@ -13,7 +13,6 @@ import (
 
 	"github.com/SigNoz/signoz/pkg/global"
 	"github.com/SigNoz/signoz/pkg/types/authtypes"
-	"github.com/SigNoz/signoz/pkg/valuer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,10 +22,10 @@ func testHandler(t *testing.T, p *testProvider) *Handler {
 	config.Issuer = p.server.URL
 	external, err := url.Parse("https://signoz.example.com/observe")
 	require.NoError(t, err)
-	return New(config, global.Config{ExternalURL: external}, func(_ context.Context, email valuer.Email) (*authtypes.GettableToken, error) {
-		require.Equal(t, "alice@example.com", email.String())
+	return New(config, global.Config{ExternalURL: external}, func(_ context.Context, identity Identity) (*authtypes.GettableToken, error) {
+		require.Equal(t, "alice@example.com", identity.Email.String())
 		return &authtypes.GettableToken{AccessToken: "signoz-access", RefreshToken: "signoz-refresh", TokenType: "bearer", ExpiresIn: 300}, nil
-	})
+	}, nil)
 }
 
 func TestOIDCLogin(t *testing.T) {
@@ -188,10 +187,10 @@ func TestCompleteRequiresOriginAndIdentity(t *testing.T) {
 	h.Complete(w, r)
 	require.Equal(t, http.StatusForbidden, w.Code)
 	w = httptest.NewRecorder()
-	require.NoError(t, h.setCookie(w, identityCookie, loginCookie{Email: "alice@example.com"}, time.Minute, http.SameSiteStrictMode))
+	require.NoError(t, h.setCookie(w, identityCookie, loginCookie{Email: "alice@example.com", Subject: "keycloak-user", IssuedAt: time.Now().Unix()}, time.Minute, http.SameSiteStrictMode))
 	r.AddCookie(responseCookie(t, w, identityCookie))
 	w = httptest.NewRecorder()
-	h.createSession = func(context.Context, valuer.Email) (*authtypes.GettableToken, error) {
+	h.createSession = func(context.Context, Identity) (*authtypes.GettableToken, error) {
 		return nil, fmt.Errorf("sensitive db error")
 	}
 	h.Complete(w, r)

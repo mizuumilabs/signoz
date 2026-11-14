@@ -26,14 +26,20 @@ type PublicConfig struct {
 	LoginURL string `json:"loginURL,omitempty"`
 }
 
-type Handler struct {
-	config        Config
-	external      *url.URL
-	createSession func(context.Context, valuer.Email) (*authtypes.GettableToken, error)
+type Identity struct {
+	Email   valuer.Email
+	Session authtypes.OIDCSession
 }
 
-func New(config Config, globalConfig global.Config, createSession func(context.Context, valuer.Email) (*authtypes.GettableToken, error)) *Handler {
-	return &Handler{config: config, external: globalConfig.ExternalURL, createSession: createSession}
+type Handler struct {
+	config         Config
+	external       *url.URL
+	createSession  func(context.Context, Identity) (*authtypes.GettableToken, error)
+	revokeSessions func(context.Context, authtypes.OIDCSession) error
+}
+
+func New(config Config, globalConfig global.Config, createSession func(context.Context, Identity) (*authtypes.GettableToken, error), revokeSessions func(context.Context, authtypes.OIDCSession) error) *Handler {
+	return &Handler{config: config, external: globalConfig.ExternalURL, createSession: createSession, revokeSessions: revokeSessions}
 }
 
 func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
@@ -132,6 +138,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		Email           string `json:"email"`
 		EmailVerified   bool   `json:"email_verified"`
 		AuthorizedParty string `json:"azp"`
+		SID             string `json:"sid"`
 	}
 	if err := idToken.Claims(&claims); err != nil || !claims.EmailVerified || (claims.AuthorizedParty != "" && claims.AuthorizedParty != h.config.ClientID) || (len(idToken.Audience) > 1 && claims.AuthorizedParty == "") {
 		h.fail(w, r)
@@ -141,10 +148,17 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r)
 		return
 	}
-	if err := h.setCookie(w, identityCookie, loginCookie{Email: claims.Email}, time.Minute, http.SameSiteStrictMode); err != nil {
+	if idToken.IssuedAt.IsZero() || idToken.IssuedAt.After(time.Now().Add(time.Minute)) {
 		h.fail(w, r)
 		return
 	}
+	if err := h.setCookie(w, identityCookie, loginCookie{Email: claims.Email, Subject: idToken.Subject, SID: claims.SID, IssuedAt: idToken.IssuedAt.Unix()}, time.Minute, http.SameSiteStrictMode); err != nil {
+		h.fail(w, r)
+		return
+	}
+	h.clearCookie(w, logoutCookie)
+	// Oversized ID tokens fall back to client_id logout with provider confirmation.
+	_ = h.setCookie(w, logoutCookie, loginCookie{IDToken: raw}, 30*24*time.Hour, http.SameSiteStrictMode)
 	http.Redirect(w, r, path.Join(h.external.Path, "/login")+"?oidcComplete=true", http.StatusSeeOther)
 }
 
@@ -161,7 +175,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 	}
 	identity, err := h.readCookie(r, identityCookie)
 	h.clearCookie(w, identityCookie)
-	if err != nil || identity.Email == "" {
+	if err != nil || identity.Email == "" || identity.Subject == "" || identity.IssuedAt <= 0 {
 		render.Error(w, errors.New(errors.TypeForbidden, errors.CodeForbidden, "OIDC login expired; sign in again"))
 		return
 	}
@@ -172,7 +186,10 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
-	token, err := h.createSession(ctx, email)
+	token, err := h.createSession(ctx, Identity{Email: email, Session: authtypes.OIDCSession{
+		Issuer: h.config.Issuer, ClientID: h.config.ClientID, OrgID: h.config.OrgID.String(),
+		Subject: identity.Subject, SID: identity.SID, IssuedAt: identity.IssuedAt,
+	}})
 	if err != nil {
 		render.Error(w, errors.New(errors.TypeForbidden, errors.CodeForbidden, "OIDC user is not an active member of this organization"))
 		return

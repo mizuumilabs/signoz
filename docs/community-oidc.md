@@ -24,8 +24,9 @@ groups and roles. Provision and activate users before enabling it.
 
 Because verified email links the accounts, restrict who can assign and verify
 email addresses in the Keycloak realm. Reassigning an email can transfer access
-to the corresponding SigNoz account. Removing access in Keycloak prevents new
-logins but does not revoke already-issued SigNoz sessions.
+to the corresponding SigNoz account. To revoke existing SigNoz sessions from
+Keycloak, configure back-channel logout below and terminate the user's Keycloak
+sessions. Disabling a Keycloak user alone is not a logout notification.
 
 ## Configure Keycloak
 
@@ -48,6 +49,64 @@ https://example.com/observe/api/v2/sessions/oidc/callback
 ```
 
 The client supports S256 PKCE. The client secret is used only by the backend.
+
+Set **Valid post logout redirect URIs** on this client to the exact login URL:
+
+```text
+https://signoz.example.com/login
+```
+
+Include any deployment path prefix, for example `https://example.com/observe/login`.
+Clicking **Logout** in SigNoz deletes the local session and redirects the browser
+to the provider's discovered `end_session_endpoint`, then back to this login URL.
+The return URL is fixed by `global.external_url`; callers cannot override it.
+New logins retain the verified ID token as an encrypted, Secure, HttpOnly cookie
+for up to 30 days, used only as `id_token_hint` during explicit logout. This hint
+normally avoids a Keycloak confirmation screen. Existing logins, expired or
+missing cookies, and ID tokens too large for a cookie fall back to `client_id`
+logout; Keycloak may ask for confirmation before ending its session.
+
+Automatic cleanup after an expired API session stays local. If Keycloak discovery
+is unavailable or has no secure logout endpoint, SigNoz still deletes its local
+session, but the Keycloak SSO session may remain active. Provider logout can also
+log out other applications attached to that Keycloak browser session.
+
+### Back-channel logout
+
+In the login client's **Logout settings**, disable **Front channel logout**, set
+**Backchannel logout URL** to:
+
+```text
+https://signoz.example.com/api/v2/sessions/oidc/backchannel-logout
+```
+
+Include the deployment path prefix if present. Enable **Backchannel logout
+session required** so Keycloak includes `sid` in its logout tokens and ID tokens.
+Keycloak must be able to POST to this URL without a browser session or proxy
+login. Configure the client to use signed tokens, with RS256 (the default) or an
+RSA-PSS/ECDSA algorithm; encrypted logout tokens are not supported.
+
+This endpoint is enabled with `oidc.enabled`; no extra SigNoz setting is needed.
+It validates the provider signature, issuer, client audience, `iat`, `exp`, `jti`,
+logout event, and absence of `nonce`. Logout tokens must be issued within the
+last five minutes, with at most one minute of future clock skew. Valid retries
+and notifications for an already logged-out session return HTTP 200.
+
+A `sid` notification revokes that Keycloak session. With only `sub`, it revokes
+the subject's OIDC sessions whose ID token was issued at or before the logout.
+Revocation is scoped to issuer, client, and configured SigNoz organization.
+SigNoz checks persisted revocations on every OIDC session request and refresh,
+including cached sessions on other replicas sharing the SQL database. Pending
+browser login completions are checked too. Revocations survive restarts and
+retries cannot revoke a later login with a new `sid` and a later issue time.
+The revocation table retains one hashed entry per logged-out session or subject;
+it is not automatically pruned.
+
+Community OIDC login requires the default `tokenizer.provider: opaque`; startup
+rejects the stateless JWT tokenizer because it cannot revoke sessions. Existing
+community OIDC sessions from before this update must sign in again to acquire
+the provider session metadata. Built-in service-account keys and Keycloak
+client-credentials tokens are separate and are unaffected by browser logout.
 
 ## Configure SigNoz
 
@@ -98,13 +157,26 @@ it does not invalidate a separately captured copy before its expiry.
 Test in a private window: sign in as an existing active user, confirm dashboard
 access and the existing role, then verify password login returns HTTP 403 and
 an unknown or unverified Keycloak user cannot sign in. If Keycloak is unavailable,
-the flow fails without offering password login. Logout revokes the SigNoz session;
-it does not terminate the Keycloak session, so the next login can reuse Keycloak
-SSO. Previously issued SigNoz sessions continue under the normal token policy.
+the flow fails without offering password login. Explicit logout revokes the
+SigNoz session and requests Keycloak logout through the browser. Verify that the
+next login requires Keycloak authentication. Keycloak-initiated back-channel
+logout revokes the corresponding SigNoz
+session, but does not push changes into an idle browser tab; the next API request
+or refresh fails and the frontend handles it as an expired session.
+
+To verify back-channel logout, sign in from two private browser profiles, end
+one session from Keycloak's user **Sessions** tab, and confirm its next SigNoz
+request and token refresh are rejected while the other profile still works.
+Sign in again and verify a fresh session works. Repeat with the user's sessions
+terminated from the Keycloak admin console. Removing a role does not itself send
+a logout event; SigNoz roles continue to be managed locally.
 
 For recovery, set `oidc.enabled: false` and restart the server. No passwords,
 users, roles, or enterprise licensing records are changed by this configuration.
 
 Protocol references: [OpenID Connect Core](https://openid.net/specs/openid-connect-core-1_0.html),
+[Back-Channel Logout](https://openid.net/specs/openid-connect-backchannel-1_0.html),
+[RP-Initiated Logout](https://openid.net/specs/openid-connect-rpinitiated-1_0.html),
+[Keycloak logout settings](https://www.keycloak.org/docs/latest/server_admin/#_oidc_clients),
 [go-oidc](https://pkg.go.dev/github.com/coreos/go-oidc/v3/oidc), and
 [OAuth2 PKCE helpers](https://pkg.go.dev/golang.org/x/oauth2).

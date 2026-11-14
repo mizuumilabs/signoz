@@ -106,6 +106,9 @@ func (provider *provider) Start(ctx context.Context) error {
 }
 
 func (provider *provider) CreateToken(ctx context.Context, identity *authtypes.Identity, meta map[string]string) (*authtypes.Token, error) {
+	if err := provider.tokenStore.CheckOIDCSession(ctx, meta); err != nil {
+		return nil, err
+	}
 	existingTokens, err := provider.tokenStore.ListByUserID(ctx, identity.UserID)
 	if err != nil {
 		return nil, err
@@ -146,6 +149,9 @@ func (provider *provider) GetIdentity(ctx context.Context, accessToken string) (
 	if err := token.IsValid(provider.config.Rotation.Interval, provider.config.Lifetime.Idle, provider.config.Lifetime.Max); err != nil {
 		return nil, err
 	}
+	if err := provider.tokenStore.CheckOIDCSession(ctx, token.Meta); err != nil {
+		return nil, err
+	}
 
 	identity, err := provider.getOrGetSetIdentity(ctx, token.UserID)
 	if err != nil {
@@ -159,6 +165,9 @@ func (provider *provider) RotateToken(ctx context.Context, accessToken string, r
 	var rotatedToken *authtypes.Token
 
 	if err := provider.tokenStore.GetOrUpdateByAccessTokenOrPrevAccessToken(ctx, accessToken, func(ctx context.Context, token *authtypes.StorableToken) error {
+		if err := provider.tokenStore.CheckOIDCSession(ctx, token.Meta); err != nil {
+			return err
+		}
 		currentAccessToken := token.AccessToken
 
 		if err := token.Rotate(accessToken, refreshToken, provider.config.Rotation.Duration, provider.config.Lifetime.Idle, provider.config.Lifetime.Max); err != nil {
@@ -199,6 +208,10 @@ func (provider *provider) DeleteToken(ctx context.Context, accessToken string) e
 	}
 
 	return nil
+}
+
+func (provider *provider) RevokeOIDCSessions(ctx context.Context, session authtypes.OIDCSession) error {
+	return provider.tokenStore.RevokeOIDCSessions(ctx, session)
 }
 
 func (provider *provider) DeleteTokensByUserID(ctx context.Context, userID valuer.UUID) error {
